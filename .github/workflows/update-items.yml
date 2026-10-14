@@ -1,0 +1,177 @@
+name: Roblox Bloxquest Autopilot
+
+on:
+  schedule:
+    - cron: "17 * * * *"      # every hour at minute 17
+  workflow_dispatch:           # manual "Run workflow" button
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bloxquest-autopilot
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20      # built-in fetch, so no packages to install
+
+      - name: Fetch Roblox data and build items.json
+        run: |
+          cat > "$RUNNER_TEMP/update.mjs" <<'EOF'
+          // Bloxquest Autopilot: runs on GitHub's servers (no CORS). Writes items.json = { updated, items, games }.
+          import fs from 'node:fs';
+          
+          const MAX_ITEMS = 60;
+          /* Popular experiences tracked every run (Place IDs). Names, players, visits and images come live from Roblox. */
+          const TARGET_PLACES = [920587237, 2753915549, 4924922222, 142823291, 1962086868, 8737899170, 6516141723, 735030788, 606849621, 286090429];
+          // Adopt Me!, Blox Fruits, Brookhaven RP, Murder Mystery 2, Tower of Hell, Pet Simulator 99, DOORS, Royale High, Jailbreak, Arsenal
+          
+          let prev = { items: [], games: [] };
+          try { prev = JSON.parse(fs.readFileSync('items.json', 'utf8')); } catch (e) {}
+          
+          const sleep = ms => new Promise(r => setTimeout(r, ms));
+          const chunk = (a, n) => Array.from({ length: Math.ceil(a.length / n) }, (_, i) => a.slice(i * n, i * n + n));
+          const clamp = (v, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, v));
+          const HEADERS = { 'User-Agent': 'BloxquestAutopilot/1.0', Accept: 'application/json' };
+          
+          async function req(url, opts = {}) {
+            for (let i = 0; i < 4; i++) {
+              const r = await fetch(url, { ...opts, headers: { ...HEADERS, ...(opts.headers || {}) } });
+              if (r.status === 429) { await sleep(3000 * (i + 1)); continue; }
+              return r;
+            }
+            throw new Error('Rate limited: ' + url);
+          }
+          async function getJSON(url) {
+            const r = await req(url);
+            if (!r.ok) throw new Error(`${r.status} ${url}`);
+            return r.json();
+          }
+          
+          /* ---------- FORMULAS (estimates: Roblox publishes no difficulty or grind data) ---------- */
+          const interestTier = p => (p > 50000 ? 'Critical' : p > 10000 ? 'High' : 'Medium');
+          const difficultyLabel = g => (g < 34 ? 'Easy' : g < 67 ? 'Medium' : 'Hard');
+          function gameGrind(genreText, visits) {
+            const t = String(genreText || '').toLowerCase();
+            const base = /simulat|tycoon|rpg|role|fight|anime|collect/.test(t) ? 70
+                       : /obby|parkour|party|social|hangout|sport|comedy|town/.test(t) ? 30 : 50;
+            return clamp(Math.round(base + (Math.log10(Math.max(visits, 1)) - 8) * 6));
+          }
+          function itemGrind(stock, max) {
+            if (!Number.isFinite(max) || max <= 0) return null;
+            const scarcity = 1 - Math.min(1, Math.log10(max) / 5);
+            const claimed = Number.isFinite(stock) ? 1 - stock / max : 0;
+            return clamp(Math.round(scarcity * 50 + claimed * 50));
+          }
+          const itemFun = fav => (Number.isFinite(fav) ? clamp(Math.round((Math.log10(1 + fav) / 4) * 100)) : null);
+          
+          /* ---------- GAMES ---------- */
+          async function buildGames() {
+            const pairs = [];
+            for (const placeId of TARGET_PLACES) {
+              try {
+                const j = await getJSON(`https://apis.roblox.com/universes/v1/places/${placeId}/universe`);
+                if (j.universeId) pairs.push({ placeId, universeId: j.universeId });
+              } catch (e) { console.warn('Skipped place', placeId, e.message); }
+            }
+            if (!pairs.length) throw new Error('No place IDs resolved');
+            const ids = pairs.map(p => p.universeId).join(',');
+            const [det, votes, icons] = await Promise.all([
+              getJSON(`https://games.roblox.com/v1/games?universeIds=${ids}`),
+              getJSON(`https://games.roblox.com/v1/games/votes?universeIds=${ids}`),
+              getJSON(`https://thumbnails.roblox.com/v1/games/icons?universeIds=${ids}&returnPolicy=PlaceHolder&size=512x512&format=Png&isCircular=false`)
+            ]);
+            const vMap = Object.fromEntries((votes.data || []).map(v => [v.id, v]));
+            const iMap = Object.fromEntries((icons.data || []).filter(i => i.state === 'Completed').map(i => [i.targetId, i.imageUrl]));
+            const pMap = Object.fromEntries(pairs.map(p => [p.universeId, p.placeId]));
+            return (det.data || []).map(g => {
+              const v = vMap[g.id] || {};
+              const total = (v.upVotes || 0) + (v.downVotes || 0);
+              const grind = gameGrind([g.genre, g.genre_l1, g.genre_l2].join(' '), g.visits || 0);
+              const placeId = pMap[g.id] || g.rootPlaceId;
+              return {
+                id: g.id, placeId, title: g.name,
+                desc: g.description || 'No description provided.',
+                creator: g.creator ? g.creator.name : null,
+                genre: g.genre || null,
+                players: g.playing || 0, visits: g.visits || 0, favorites: g.favoritedCount || 0,
+                image: iMap[g.id] || null,
+                launchUrl: `https://www.roblox.com/games/${placeId}`,
+                interest: interestTier(g.playing || 0),
+                grind, difficulty: difficultyLabel(grind),
+                fun: total > 0 ? Math.round((v.upVotes / total) * 100) : null
+              };
+            }).sort((a, b) => b.players - a.players);
+          }
+          
+          /* ---------- FREE LIMITED UGC ITEMS ---------- */
+          let csrf = '';
+          async function details(batch) {
+            const body = JSON.stringify({ items: batch.map(id => ({ itemType: 'Asset', id })) });
+            for (let i = 0; i < 2; i++) {
+              const r = await req('https://catalog.roblox.com/v1/catalog/items/details', {
+                method: 'POST', body, headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrf }
+              });
+              if (r.status === 403 && r.headers.get('x-csrf-token')) { csrf = r.headers.get('x-csrf-token'); continue; }
+              if (!r.ok) throw new Error('details ' + r.status);
+              return (await r.json()).data || [];
+            }
+            throw new Error('details CSRF failed');
+          }
+          async function buildItems() {
+            const found = await getJSON('https://catalog.roblox.com/v1/search/items?category=All&limit=120&maxPrice=0&salesTypeFilter=2&sortType=3');
+            const ids = [...new Set((found.data || []).filter(d => d.itemType === 'Asset').map(d => d.id))].slice(0, MAX_ITEMS);
+            let rows = [];
+            for (const b of chunk(ids, 50)) rows.push(...await details(b));
+            rows = rows.filter(r => r.price === 0);
+            const thumbs = {};
+            for (const b of chunk(rows.map(r => r.id), 100)) {
+              const t = await getJSON(`https://thumbnails.roblox.com/v1/assets?assetIds=${b.join(',')}&returnPolicy=PlaceHolder&size=420x420&format=Png&isCircular=false`);
+              (t.data || []).forEach(d => { if (d.state === 'Completed') thumbs[d.targetId] = d.imageUrl; });
+            }
+            return rows.map(r => {
+              const stock = Number.isFinite(r.unitsAvailableForConsumption) ? r.unitsAvailableForConsumption : null;
+              const maxStock = Number.isFinite(r.totalQuantity) ? r.totalQuantity : null;
+              return {
+                id: r.id, title: r.name,
+                desc: r.description || 'No description provided.',
+                creator: r.creatorName || null,
+                image: thumbs[r.id] || null,
+                grind: itemGrind(stock, maxStock),
+                fun: itemFun(r.favoriteCount),
+                stock, maxStock
+              };
+            });
+          }
+          
+          /* ---------- RUN ---------- */
+          let failures = 0, games = prev.games || [], items = prev.items || [];
+          try { games = await buildGames(); console.log(`Games: ${games.length}`); } catch (e) { failures++; console.error('Games failed:', e.message); }
+          try { items = await buildItems(); console.log(`Items: ${items.length}`); } catch (e) { failures++; console.error('Items failed:', e.message); }
+          if (failures === 2) { console.error('Both sections failed; keeping the existing items.json.'); process.exit(1); }
+          fs.writeFileSync('items.json', JSON.stringify({ updated: new Date().toISOString(), items, games }, null, 2));
+          console.log('items.json written.');
+          EOF
+          node "$RUNNER_TEMP/update.mjs"
+
+      - name: Commit and push items.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add items.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Autopilot: update items.json"
+            git pull --rebase
+            git push
+          fi
