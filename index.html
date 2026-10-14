@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bloxquest — Free Limited UGC Directory</title>
+<style>
+:root{--bg:#121214;--card:#1a1a1e;--text:#f1f1f4;--muted:#9a9aa6;--line:#2c2c33;--track:#2a2a30;--cyan:#00e5ff;--green:#00e676;--yellow:#ffeb3b;--red:#ff3d00;--blue:#2979ff;--onCyan:#00181c}
+[data-theme="light"]{--bg:#f4f5f8;--card:#ffffff;--text:#16161a;--muted:#5d5d6b;--line:#dcdde4;--track:#e3e4ea}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh;padding-bottom:110px;transition:background .25s,color .25s}
+header{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:var(--card);border-bottom:2px solid var(--cyan);box-shadow:0 0 18px rgba(0,229,255,.25)}
+.logo{font-weight:900;letter-spacing:.18em;text-transform:uppercase;font-size:1.3rem;color:var(--cyan);text-shadow:0 0 12px rgba(0,229,255,.55)}
+#themeBtn{font-size:1.3rem;background:var(--bg);border:1px solid var(--cyan);border-radius:10px;width:44px;height:44px;cursor:pointer}
+main{max-width:1200px;margin:0 auto;padding:24px 16px}
+.section{display:none}.section.active{display:block}
+.sub{color:var(--muted);margin:6px 0 16px;font-size:.92rem}
+.search{width:100%;padding:14px 16px;margin-bottom:20px;border-radius:12px;border:2px solid var(--line);background:var(--card);color:var(--text);font-size:1rem;outline:none}
+.search:focus{border-color:var(--cyan);box-shadow:0 0 14px rgba(0,229,255,.35)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px;height:440px;transition:border-color .2s,box-shadow .2s}
+.card:hover{border-color:var(--cyan);box-shadow:0 0 16px rgba(0,229,255,.3)}
+.thumb{height:120px;border-radius:10px;background:var(--track);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.thumb img{width:100%;height:100%;object-fit:contain}
+.ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:2rem;letter-spacing:.08em;color:var(--cyan);background:repeating-linear-gradient(45deg,var(--track),var(--track) 10px,var(--bg) 10px,var(--bg) 20px)}
+.scroll{flex:1;overflow-y:auto;padding-right:6px;display:flex;flex-direction:column;gap:9px;min-height:0}
+.scroll::-webkit-scrollbar{width:6px}.scroll::-webkit-scrollbar-thumb{background:var(--cyan);border-radius:3px}
+.card h3{font-size:1.02rem}
+.game{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--cyan);font-weight:700}
+.gicon{width:26px;height:26px;border-radius:6px;overflow:hidden;flex-shrink:0;background:var(--track)}
+.gicon img,.gicon .ph{width:100%;height:100%;object-fit:cover;font-size:.7rem}
+.desc{font-size:.85rem;color:var(--muted);line-height:1.45}
+.meter label{display:flex;justify-content:space-between;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+.bar{height:10px;border-radius:6px;background:var(--track);overflow:hidden}
+.fill{height:100%;border-radius:6px;transition:width .5s}
+.fill.fun{background:var(--blue)}.fill.stock{background:var(--cyan)}
+.foot{display:flex;gap:8px;flex-shrink:0}
+.btn{flex:1;padding:10px 0;border-radius:9px;font-weight:700;cursor:pointer;font-size:.88rem;border:1px solid var(--cyan);background:transparent;color:var(--cyan);text-align:center;text-decoration:none;display:inline-block}
+.btn.primary,.btn.on{background:var(--cyan);color:var(--onCyan)}
+.btn:hover{box-shadow:0 0 12px var(--cyan)}
+.hotbar{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:60;display:flex;gap:6px;padding:7px;border-radius:999px;background:var(--card);border:2px solid var(--cyan);box-shadow:0 0 22px rgba(0,229,255,.45)}
+.hotbar button{border:0;background:transparent;color:var(--text);font-weight:800;font-size:.95rem;padding:11px 26px;border-radius:999px;cursor:pointer}
+.hotbar button.active{background:var(--cyan);color:var(--onCyan)}
+.stack{display:flex;flex-direction:column;gap:14px;max-width:640px;margin:0 auto}
+.rank{display:flex;gap:14px;background:var(--card);border:1px solid var(--line);border-left:5px solid var(--cyan);border-radius:12px;padding:14px}
+.rank .n{font-size:1.8rem;font-weight:900;color:var(--cyan);min-width:48px}
+.rank .body{flex:1;display:flex;flex-direction:column;gap:8px}
+.rank .thumb{height:90px}
+.tag{font-size:.75rem;font-weight:700;color:var(--muted)}
+.empty{text-align:center;color:var(--muted);padding:50px 10px;border:1px dashed var(--line);border-radius:14px;grid-column:1/-1}
+.modal{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;padding:16px}
+.modal.open{display:flex}
+.mbox{width:min(560px,100%);max-height:92vh;overflow-y:auto;background:var(--card);border:2px solid var(--cyan);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:12px;box-shadow:0 0 40px rgba(0,229,255,.35)}
+.mhead{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.mhead .kicker{color:var(--cyan);font-weight:900;letter-spacing:.15em;font-size:.75rem;text-transform:uppercase}
+.close{background:#ff1744;color:#fff;border:2px solid #fff;font-weight:900;padding:8px 18px;border-radius:9px;cursor:pointer}
+.big{height:260px;border-radius:12px;background:var(--track);overflow:hidden}
+.big img{width:100%;height:100%;object-fit:contain}
+.big .ph{font-size:3.5rem}
+.row{display:flex;gap:10px}
+.go{padding:14px 0;font-size:1rem}
+.close:focus-visible,.btn:focus-visible,#themeBtn:focus-visible,.hotbar button:focus-visible{outline:3px solid var(--yellow);outline-offset:2px}
+.badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.7rem;font-weight:800;border:1px solid var(--cyan);color:var(--cyan)}
+.stats{display:flex;gap:14px;font-size:.78rem;color:var(--muted);flex-wrap:wrap}
+.toast{position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:var(--cyan);color:var(--onCyan);font-weight:700;padding:9px 18px;border-radius:999px;z-index:120;opacity:0;pointer-events:none;transition:opacity .25s}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">BLOXQUEST</div>
+  <button id="themeBtn" aria-label="Toggle light and dark theme">☀️</button>
+</header>
+
+<main>
+  <section id="browse" class="section active">
+    <h2>Browse Free Limited UGC</h2>
+    <p class="sub">Every item is 0 Robux. Check the bars to judge the effort before you commit.<span id="meta"></span></p>
+    <input id="search" class="search" type="search" placeholder="Search items..." autocomplete="off" aria-label="Search items">
+    <div class="grid" id="grid"></div>
+  </section>
+  <section id="games" class="section">
+    <h2>Popular Games</h2>
+    <p class="sub">Live player counts and visits. Grind is an estimate and Fun comes from the like ratio.</p>
+    <input id="gsearch" class="search" type="search" placeholder="Search games..." autocomplete="off" aria-label="Search games">
+    <div class="grid" id="gamesGrid"></div>
+  </section>
+  <section id="compare" class="section">
+    <h2>Compare Dashboard</h2>
+    <p class="sub">Items and games you picked, auto-ranked from easiest grind to hardest grind.</p>
+    <div class="stack" id="compareStack"></div>
+  </section>
+</main>
+
+<nav class="hotbar" aria-label="Main navigation">
+  <button id="navBrowse" class="active">Browse</button>
+  <button id="navGames">Games</button>
+  <button id="navCompare">Compare</button>
+</nav>
+
+<div class="modal" id="modal" role="dialog" aria-modal="true" aria-label="Mission details">
+  <div class="mbox" id="mbox"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* All data comes from items.json, rebuilt hourly by the GitHub workflow. Nothing is hardcoded here. */
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let items = [], games = [], compareSet = [], query = '';
+
+const initials = t => String(t).split(/\s+/).slice(0,2).map(w => w[0] || '').join('').toUpperCase();
+const ph = t => `<div class="ph">${esc(initials(t))}</div>`;
+const img = (src, label) => src ? `<img loading="lazy" referrerpolicy="no-referrer" src="${esc(src)}" alt="${esc(label)}" data-label="${esc(label)}">` : ph(label);
+document.addEventListener('error', e => {
+  const el = e.target;
+  if(el.tagName === 'IMG' && el.dataset.label) el.replaceWith(Object.assign(document.createElement('div'), {className:'ph', textContent:initials(el.dataset.label)}));
+}, true);
+
+const isNum = v => typeof v === 'number' && isFinite(v);
+const fmt = n => Number(n || 0).toLocaleString();
+const gColor = v => v < 34 ? 'var(--green)' : v < 67 ? 'var(--yellow)' : 'var(--red)';
+const gLabel = v => v < 34 ? 'Easy' : v < 67 ? 'Medium' : 'Hard';
+const find = k => items.find(x => x.key === k) || games.find(x => x.key === k);
+const matches = x => !query.trim() || [x.title, x.creator, x.genre, x.desc].join(' ').toLowerCase().includes(query.trim().toLowerCase());
+
+const meter = (label, text, pct, bg, tc) => `<div class="meter"><label><span>${label}</span><span style="color:${tc || 'inherit'}">${text}</span></label><div class="bar"><div class="fill" style="width:${pct}%;background:${bg}"></div></div></div>`;
+function bars(x){
+  const g = isNum(x.grind), f = isNum(x.fun);
+  let third;
+  if(x.kind === 'game'){
+    third = meter('Active Players', fmt(x.players), Math.min(100, Math.round(x.players / 1000)), 'var(--cyan)');
+  }else{
+    const s = isNum(x.stock) && isNum(x.maxStock) && x.maxStock > 0;
+    third = meter('Live Stock', s ? fmt(x.stock) + '/' + fmt(x.maxStock) : 'N/A', s ? Math.min(100, Math.round(x.stock / x.maxStock * 100)) : 0, 'var(--cyan)');
+  }
+  return meter('Grind Meter', g ? x.grind + '% · ' + gLabel(x.grind) : 'Unrated', g ? x.grind : 0, g ? gColor(x.grind) : 'transparent', g ? gColor(x.grind) : 'var(--muted)')
+       + meter('Fun Index', f ? x.fun + '%' : 'Unrated', f ? x.fun : 0, 'var(--blue)')
+       + third;
+}
+const sub = x => x.kind === 'game'
+  ? `<div class="game">${esc(x.creator || '')} <span class="badge">${esc(x.interest)} interest</span></div><div class="stats"><span>${fmt(x.players)} playing</span><span>${fmt(x.visits)} visits</span></div>`
+  : `<div class="game">FREE · ${esc(x.creator || 'UGC')}</div>`;
+
+function card(x){
+  const on = compareSet.includes(x.key);
+  return `<article class="card">
+    <div class="thumb">${img(x.image, x.title)}</div>
+    <div class="scroll"><h3>${esc(x.title)}</h3>${sub(x)}${bars(x)}<p class="desc">${esc(x.desc)}</p></div>
+    <div class="foot"><button class="btn primary" data-view="${x.key}">View</button><button class="btn ${on ? 'on' : ''}" data-cmp="${x.key}">${on ? 'Added' : 'Compare'}</button></div>
+  </article>`;
+}
+const emptyMsg = (what, total) => `<div class="empty">${total ? 'Nothing matches your search.' : 'No ' + what + ' yet. Run the "Roblox Bloxquest Autopilot" workflow once from the GitHub Actions tab.'}</div>`;
+function renderBrowse(){ const l = items.filter(matches); $('grid').innerHTML = l.length ? l.map(card).join('') : emptyMsg('items', items.length); }
+function renderGames(){ const l = games.filter(matches); $('gamesGrid').innerHTML = l.length ? l.map(card).join('') : emptyMsg('games', games.length); }
+
+function renderCompare(){
+  const list = compareSet.map(find).filter(Boolean).sort((a,b) => (isNum(a.grind) ? a.grind : 1e9) - (isNum(b.grind) ? b.grind : 1e9));
+  $('compareStack').innerHTML = list.length ? list.map((x,i) => `
+    <div class="rank">
+      <div class="n">#${i+1}</div>
+      <div class="body">
+        <div class="thumb">${img(x.image, x.title)}</div>
+        <strong>${esc(x.title)}</strong>
+        <span class="tag">${x.kind === 'game' ? 'Game' : 'Item'} · ${i===0 ? 'Easiest grind' : (i===list.length-1 && list.length>1) ? 'Hardest grind' : 'Rank ' + (i+1) + ' of ' + list.length}</span>
+        ${bars(x)}
+        <div class="foot"><button class="btn primary" data-view="${x.key}">View</button><button class="btn" data-cmp="${x.key}">Remove</button></div>
+      </div>
+    </div>`).join('') : '<div class="empty">Nothing selected yet. Press Compare on any item or game to rank them here.</div>';
+}
+function renderAll(){ renderBrowse(); renderGames(); renderCompare(); }
+
+function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toast.t); toast.t=setTimeout(()=>t.classList.remove('show'),1500); }
+function toggleCompare(k){
+  const had = compareSet.includes(k);
+  compareSet = had ? compareSet.filter(x => x !== k) : [...compareSet, k];
+  toast(had ? 'Removed from Compare' : 'Added to Compare');
+  renderAll();
+}
+const NAV = {browse:'navBrowse', games:'navGames', compare:'navCompare'};
+function showSection(n){
+  document.querySelectorAll('.section').forEach(s => s.classList.toggle('active', s.id === n));
+  Object.entries(NAV).forEach(([sec, btn]) => $(btn).classList.toggle('active', sec === n));
+  if(n === 'compare') renderCompare();
+  window.scrollTo({top:0});
+}
+
+/* Mission Control Card */
+function openModal(k){
+  const x = find(k); if(!x) return;
+  const go = x.kind === 'game'
+    ? `<a class="btn primary go" href="${esc(x.launchUrl)}" target="_blank" rel="noopener noreferrer">Launch Experience</a>`
+    : `<a class="btn primary go" href="https://www.roblox.com/catalog/${x.id}" target="_blank" rel="noopener noreferrer">Item Page</a>`;
+  $('mbox').innerHTML = `
+    <div class="mhead"><span class="kicker">Mission Control</span><button class="close" id="closeBtn">Close</button></div>
+    <div class="big">${img(x.image, x.title)}</div>
+    <div><h2>${esc(x.title)}</h2><div style="margin-top:6px">${sub(x)}</div></div>
+    ${bars(x)}
+    <p class="desc">${esc(x.desc)}</p>
+    <div class="row">${go}</div>`;
+  $('modal').classList.add('open');
+  $('closeBtn').onclick = closeModal; $('closeBtn').focus();
+}
+function closeModal(){ $('modal').classList.remove('open'); }
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('button'); if(!b) return;
+  if(b.dataset.view) openModal(b.dataset.view);
+  else if(b.dataset.cmp) toggleCompare(b.dataset.cmp);
+});
+Object.entries(NAV).forEach(([sec, btn]) => { $(btn).onclick = () => showSection(sec); });
+$('modal').addEventListener('click', e => { if(e.target === $('modal')) closeModal(); });
+document.addEventListener('keydown', e => { if(e.key === 'Escape') closeModal(); });
+['search','gsearch'].forEach(id => $(id).addEventListener('input', e => {
+  query = e.target.value; $('search').value = query; $('gsearch').value = query;
+  renderBrowse(); renderGames();
+}));
+$('themeBtn').onclick = () => {
+  const r = document.documentElement, toLight = r.dataset.theme === 'dark';
+  r.dataset.theme = toLight ? 'light' : 'dark';
+  $('themeBtn').textContent = toLight ? '🌙' : '☀️';
+};
+
+/* Optional: set GITHUB_REPO to "yourname/yourrepo" to read items.json straight from GitHub
+   (new data without waiting for a Netlify redeploy). Leave empty to use the file deployed with the site. */
+const GITHUB_REPO = '', GITHUB_BRANCH = 'main';
+async function fetchData(){
+  const urls = [];
+  if(GITHUB_REPO) urls.push(`https://raw.githubusercontent.com/${GITHUB_REPO}/${GITHUB_BRANCH}/items.json`);
+  urls.push('items.json');
+  for(const u of urls){
+    try{ const r = await fetch(u + '?v=' + Date.now(), {cache:'no-store'}); if(r.ok) return await r.json(); }catch(err){}
+  }
+  return null;
+}
+async function loadItems(first){
+  const d = await fetchData();
+  if(!d){
+    if(first){
+      const m = '<div class="empty">Could not load items.json yet. Run the "Roblox Bloxquest Autopilot" workflow once, and open the site from a host (Netlify, GitHub Pages) because browsers block file:// fetches.</div>';
+      $('grid').innerHTML = m; $('gamesGrid').innerHTML = m;
+    }
+    return;
+  }
+  items = (d.items || []).map(x => ({...x, kind:'item', key:'i' + x.id}));
+  games = (d.games || []).map(x => ({...x, kind:'game', key:'g' + x.id}));
+  compareSet = compareSet.filter(k => find(k));
+  $('meta').textContent = d.updated ? ' Updated ' + new Date(d.updated).toLocaleString() + '.' : '';
+  renderAll();
+}
+loadItems(true);
+setInterval(loadItems, 10 * 60 * 1000);
+document.addEventListener('visibilitychange', () => { if(!document.hidden) loadItems(); });
+</script>
+</body>
+</html>
